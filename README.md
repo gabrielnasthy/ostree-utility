@@ -1,25 +1,26 @@
-## OSTree in Arch Linux using Podman
+## OSTree no Arch Linux usando Podman
 
-Massive shout-out to [M1cha](https://github.com/M1cha/) for making this possible ([M1cha/archlinux-ostree](https://github.com/M1cha/archlinux-ostree)).
+Um grande agradecimento a [M1cha](https://github.com/M1cha/) por tornar isso possível ([M1cha/archlinux-ostree](https://github.com/M1cha/archlinux-ostree)).
 
-### Overview
+### Visão geral
 
-This is a helper script which aids in curating your own setup by demonstrating how to:
-1. Build an immutable OSTree image by using rootfs from a Podman Containerfile.
-2. Partition and prepare UEFI/GPT disks for a minimal OSTree host system.
-3. Generate OSTree repository in a empty filesystem.
-4. Integrate OSTree with GRUB2 bootloader.
-5. Upgrade an existing OSTree repository with a new rootfs image.
+Este é um script auxiliar que ajuda a criar sua própria configuração, demonstrando como:
 
-### Disk structure
+1. Construir uma imagem OSTree imutável usando o **rootfs** a partir de um Containerfile do Podman.
+2. Particionar e preparar discos UEFI/GPT para um sistema host mínimo com OSTree.
+3. Gerar um repositório OSTree em um sistema de arquivos vazio.
+4. Integrar o OSTree com o carregador de boot GRUB2.
+5. Atualizar um repositório OSTree existente com uma nova imagem rootfs.
+
+### Estrutura do disco
 
 ```console
 /
 ├── boot
-│   └── efi
+│   └── efi
 └── ostree
     ├── deploy
-    │   └── archlinux
+    │   └── archlinux
     └── repo
         ├── config
         ├── extensions
@@ -29,132 +30,137 @@ This is a helper script which aids in curating your own setup by demonstrating h
         └── tmp
 ```
 
-### Persistence
+### Persistência
 
-Everything is deleted between deployments **except** for:
-- `/dev` partitions which OSTree does not reside on are untouched.
-- `/etc` only if `--merge` option is specified.
-- `/home` is symlinked to `/var/home` (see below).
-- `/var` data here is mounted from `/ostree/deploy/archlinux/var` to avoid duplication.
+Tudo é apagado entre os deploys **exceto**:
 
-Notes:
-- `/var/cache/podman` is populated _only_ after the first deployment (to avoid including old data from the build machine), this speeds up consecutive builds.
-- `/var/lib/containers` same as above but for Podman layers and images. Base images are updated automatically during `upgrade` command.
+* Partições em `/dev` onde o OSTree não está armazenado.
+* `/etc`, mas somente se a opção `--merge` for especificada.
+* `/home`, que é um symlink para `/var/home` (veja abaixo).
+* Os dados de `/var` vêm de `/ostree/deploy/archlinux/var` para evitar duplicação.
 
-### Technology stack
+Notas:
 
-- OSTree
-- Podman with CRUN and Native-Overlayfs
-- GRUB2
-- XFS _(not required)_
+* `/var/cache/podman` só é populado após o primeiro deploy (para evitar inclusão de dados antigos da máquina de build), acelerando builds consecutivos.
+* `/var/lib/containers` segue a mesma lógica, mas para camadas e imagens do Podman. Imagens base são atualizadas automaticamente durante o comando `upgrade`.
 
-### Motivation
+### Stack de tecnologias
 
-My vision is to build a secure and minimal base system which is resilient against breakage and provides setup automation to reduce the burden of doing manual tasks. This can be achieved by:
+* OSTree
+* Podman com CRUN e Native-Overlayfs
+* GRUB2
+* XFS *(não obrigatório)*
 
-- Git.
-- Read-only system files.
-- Restore points.
-- Automatic deployment, installation & configuration.
-- Using only required components like kernel/firmware/driver, microcode and GGC in the base.
-- Doing the rest in temporary namespaces such as Podman.
+### Motivação
 
-### Goal
+Minha visão é construir um sistema base seguro e mínimo, resiliente contra falhas e que forneça automação de configuração para reduzir a carga de tarefas manuais. Isso pode ser alcançado com:
 
-- Reproducible deployments.
-- Versioned rollbacks.
-- Immutable filesystem.
-- Distribution agnostic toolset.
-- Configuration management.
-- Rootfs creation via containers.
-- Each deployment does a factory reset of system's configuration _(unless overridden)_.
+* Git.
+* Arquivos de sistema somente leitura.
+* Pontos de restauração.
+* Deploy, instalação e configuração automáticos.
+* Uso apenas dos componentes necessários (kernel/firmware/driver, microcode e GCC no sistema base).
+* Todo o resto rodando em namespaces temporários, como o Podman.
 
-### Similar projects
+### Objetivos
 
-- **[Elemental Toolkit](https://github.com/rancher/elemental-toolkit)**
-- **[KairOS](https://github.com/kairos-io/kairos)**
-- **[BootC](https://github.com/containers/bootc)**
-- [NixOS](https://nixos.org)
-- [ABRoot](https://github.com/Vanilla-OS/ABRoot)
-- [Transactional Update + BTRFS snapshots](https://microos.opensuse.org)
-- [AshOS](https://github.com/ashos/ashos)
-- [LinuxKit](https://github.com/linuxkit/linuxkit)
+* Deploys reproduzíveis.
+* Rollbacks versionados.
+* Sistema de arquivos imutável.
+* Ferramentas independentes da distribuição.
+* Gerenciamento de configuração.
+* Criação de rootfs via containers.
+* Cada deploy realiza um "reset de fábrica" da configuração do sistema *(a menos que sobrescrito)*.
 
-## Usage
+### Projetos semelhantes
 
-1. **Boot into any Arch Linux system:**
+* **[Elemental Toolkit](https://github.com/rancher/elemental-toolkit)**
+* **[KairOS](https://github.com/kairos-io/kairos)**
+* **[BootC](https://github.com/containers/bootc)**
+* [NixOS](https://nixos.org)
+* [ABRoot](https://github.com/Vanilla-OS/ABRoot)
+* [Transactional Update + BTRFS snapshots](https://microos.opensuse.org)
+* [AshOS](https://github.com/ashos/ashos)
+* [LinuxKit](https://github.com/linuxkit/linuxkit)
 
-   For instance, using a live CD/USB ISO image from: [Arch Linux Downloads](https://archlinux.org/download).
+---
 
-2. **Clone this repository:**
+## Uso
+
+1. **Inicialize em qualquer sistema Arch Linux:**
+
+   Por exemplo, usando uma imagem ISO live CD/USB: [Arch Linux Downloads](https://archlinux.org/download).
+
+2. **Clone este repositório:**
 
    ```console
    $ sudo pacman -Sy git
    $ git clone https://github.com/GrabbenD/ostree-utility.git && cd ostree-utility
    ```
 
-3. **Find `ID-LINK` for installation device where OSTree image will be deployed:**
+3. **Encontre o `ID-LINK` do dispositivo onde a imagem OSTree será instalada:**
 
    ```console
    $ lsblk -o NAME,TYPE,FSTYPE,MODEL,ID-LINK,SIZE,MOUNTPOINTS,LABEL
-   NAME   TYPE FSTYPE MODEL        ID-LINK                                        SIZE MOUNTPOINTS LABEL
-   sdb    disk        Virtual Disk scsi-360022480c22be84f8a61b39bbaed612f         300G
-   ├─sdb1 part vfat                scsi-360022480c22be84f8a61b39bbaed612f-part1   256M             SYS_BOOT
-   ├─sdb2 part xfs                 scsi-360022480c22be84f8a61b39bbaed612f-part2  24.7G             SYS_ROOT
-   └─sdb3 part xfs                 scsi-360022480c22be84f8a61b39bbaed612f-part3   275G             SYS_HOME
    ```
 
-4. **Perform a takeover installation:**
+4. **Realize a instalação (takeover):**
 
-   **⚠️ WARNING ⚠️**
+   ⚠️ **AVISO** ⚠️
 
-   `ostree.sh` is destructive and has no prompts while partitioning the specified disk, **proceed with caution**:
+   `ostree.sh` é destrutivo e **não faz perguntas** ao particionar o disco especificado. **Tenha cuidado!**
 
    ```console
    $ chmod +x ostree.sh
    $ sudo ./ostree.sh install --dev scsi-360022480c22be84f8a61b39bbaed612f
    ```
 
-   ⚙️ Update your BIOS boot order to access the installation.
+   ⚙️ Atualize a ordem de boot no BIOS para iniciar a instalação.
 
-   💡 Default login is: `root` / `ostree`
+   💡 Login padrão: `root` / `ostree`
 
-   💡 Use different Containerfile(s) with `--file FILE1:TAG1,FILE2:TAG2` option
+   💡 Use Containerfile(s) diferentes com a opção `--file FILE1:TAG1,FILE2:TAG2`
 
-5. **Upgrade an existing installation:**
+5. **Atualizar uma instalação existente:**
 
-   While booted into a OSTree system, use:
+   Dentro de um sistema OSTree:
 
    ```console
    $ sudo ./ostree.sh upgrade
    ```
 
-   💡 Use `--merge` option to preserve contents of `/etc`
+   💡 Use a opção `--merge` para preservar o conteúdo de `/etc`.
 
-6. **Revert to previous commit:**
+6. **Reverter para um commit anterior:**
 
-   To undo the latest deployment _(0)_; boot into the previous configuration _(1)_ and execute:
+   Para desfazer o último deploy *(0)*, inicie na configuração anterior *(1)* e execute:
 
    ```console
    $ sudo ./ostree.sh revert
    ```
 
-## Tips
+---
 
-### Read-only
+## Dicas
 
-This attribute can be temporarily removed with Overlay filesystem which allows you to modify read-only paths without persisting the changes:
+### Somente leitura
+
+Esse atributo pode ser removido temporariamente com OverlayFS, permitindo modificar caminhos somente leitura sem salvar as alterações:
 
 ```console
 $ ostree admin unlock
 ```
 
-### Outdated repository cache
+### Cache desatualizado do repositório
 
 > `error: failed retrieving file '{name}.pkg.tar.zst' from {source} : The requested URL returned error: 404`
 
-Your persistent cache is out of sync with upstream, this can be resolved with:
+Seu cache persistente está fora de sincronia com o upstream, resolva com:
 
 ```console
 $ ./ostree.sh upgrade --no-podman-cache
 ```
+
+---
+
+Quer que eu também adapte essa tradução para o estilo de **um guia/tutorial passo a passo em português**, bem fluido e didático, como se fosse de um blog tipo Diolinux?
