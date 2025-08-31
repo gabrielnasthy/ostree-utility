@@ -1,189 +1,155 @@
+-----
 
----
-
-```markdown
 # RAGLinux
 
-RAGLinux é um sistema baseado em **Arch Linux** imutável, gerenciado com **OSTree** e construído via **Podman**. Este projeto automatiza a criação de rootfs, subvolumes Btrfs, deploy OSTree, configuração de bootloader e integração de pacotes via container.
+**RAGLinux** é um sistema operacional baseado em **Arch Linux** com uma abordagem moderna e robusta: um sistema de arquivos raiz **imutável**, gerenciado de forma atômica pelo **OSTree** e construído com a flexibilidade do **Podman**.
 
----
+O objetivo deste projeto é fornecer a estabilidade de um sistema imutável, onde as atualizações são seguras e reversíveis, combinada com a vasta gama de pacotes e a filosofia "faça você mesmo" do Arch Linux.
 
-## 🚀 Estrutura do projeto
+-----
+
+## 🌟 Principais Características
+
+  * **Sistema Imutável**: O diretório raiz (`/`) é montado como somente leitura, prevenindo modificações acidentais e garantindo que cada "versão" do sistema seja consistente e testada.
+  * **Atualizações Atômicas**: As atualizações são aplicadas em uma nova "árvore" do sistema. A mudança para a nova versão ocorre em uma única operação (geralmente na reinicialização), eliminando o risco de um sistema quebrar no meio de uma atualização.
+  * **Rollbacks Simples**: Se uma atualização causar problemas, reverter para a versão anterior funcional é um comando simples e instantâneo.
+  * **Construção via Containers**: A imagem base do sistema é construída dentro de um container Podman, garantindo um ambiente de build limpo, reprodutível e isolado.
+  * **Separação Clara**: O sistema operacional é estritamente separado dos dados e configurações do usuário, que residem em subvolumes Btrfs separados (`/home`, `/var`).
+
+-----
+
+## 🛠️ Tecnologias Utilizadas
+
+  * **Base System**: [Arch Linux](https://archlinux.org/)
+  * **Gerenciamento Atômico**: [OSTree](https://ostreedev.github.io/ostree/)
+  * **Sistema de Arquivos**: [Btrfs](https://btrfs.wiki.kernel.org/)
+  * **Construção (Build)**: [Podman](https://podman.io/)
+  * **Bootloader**: [GRUB](https://www.gnu.org/software/grub/)
+
+-----
+
+## 🚀 Estrutura do Projeto
 
 ```
-
 raglinux/
-├── raglinux.sh           # Script principal de instalação e gerenciamento
-├── Containerfile.base    # Containerfile para criar rootfs
-├── README.md             # Documentação do projeto
-├── post-install.sh       # (Opcional) script pós-instalação
-├── archlinux/            # Configurações específicas do Arch
-├── cachyos/              # Configurações de build adicionais
-└── Containerfile.host.example
-
-````
-
----
-
-## 🛠 Scripts principais
-
-### `raglinux.sh`
-
-- Responsável por:
-  - Preparar ambiente
-  - Montar partições e subvolumes Btrfs
-  - Inicializar repositório OSTree
-  - Criar rootfs via Podman
-  - Configurar links simbólicos e tmpfiles
-  - Criar commit OSTree e deploy
-  - Instalar GRUB EFI e gerar `grub.cfg`
-
-- Comandos disponíveis:
-  ```bash
-  ./raglinux.sh install   # Cria deployment inicial
-  ./raglinux.sh upgrade   # Cria novo commit OSTree
-  ./raglinux.sh revert    # Reverte para deployment 0
-  ./raglinux.sh help      # Exibe documentação do CLI
-````
-
-* Opções importantes:
-
-  ```text
-  -b, --base-os      : Nome do OS (default raglinux)
-  -c, --cmdline      : Kernel args
-  -d, --dev          : Device SCSI para instalação
-  -f, --file         : Containerfile(s) para build
-  -k, --keymap       : Layout TTY
-  -t, --time         : Timezone
-  -m, --merge        : Retém /etc em upgrade
-  -n, --no-cache     : Ignora cache (Pacman + Podman)
-  -q, --quiet        : Reduz saída
-  ```
-
----
-
-### `Containerfile.base`
-
-* Base para construção do rootfs
-* Instala pacotes essenciais via `pacstrap`:
-
-  * `base`, `base-devel`, `linux`, `linux-firmware`, `ostree`, `btrfs-progs`, `nano`, `git`
-  * `plasma-desktop`, `konsole`, `dolphin`, `plasma-workspace`, `sddm`
-  * `cockpit`, `fwupd`, `pipewire`, `wireplumber`, `bluez`, `gst-plugins-*`, `ffmpeg`
-  * `podman`, `distrobox`, `bzr`, `buildah`, `skopeo`, `just`, `networkmanager`, `fastfetch`, `flatpak`
-* Configura timezone e keymap
-* Configura `locale` e hostname
-
----
-
-## ⚠️ Problemas resolvidos durante a instalação
-
-1. **Espaço insuficiente no LiveCD (`airootfs`)**
-
-   * Solução: Usei `/mnt/podman` para TMPDIR e root do Podman.
-
-   ```bash
-   export TMPDIR=/mnt/podman/tmp
-   ```
-
-2. **Erro de volume Podman não encontrado**
-
-   * Solução: Criei diretórios para cache do pacman antes do build:
-
-   ```bash
-   mkdir -p /mnt/podman/var/cache/pacman
-   ```
-
-3. **GRUB não instalado no chroot**
-
-   * Solução: Montar `/boot` e `/ostree` dentro do deployment e usar `chroot`:
-
-   ```bash
-   for i in /dev /proc /sys; do mount -o bind $i ${DEPLOY_PATH}${i}; done
-   chroot ${DEPLOY_PATH} /bin/bash -c 'grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg'
-   ```
-
-4. **Pacman inacessível no root OSTree**
-
-   * Solução: Mantive cache e DB em `/usr/lib/pacman` e usei Podman ou Flatpak para instalar apps.
-
----
-
-## 🗂 Estrutura de rootfs OSTree
-
-```
-/                   # Root imutável
-/home               # Subvolume @home
-/var                # Subvolume @var
-/ostree             # Subvolume @ostree (deployments)
-/boot/efi           # EFI boot
-/usr/lib/pacman      # Pacman DB e cache
-/usr/lib/tmpfiles.d  # Configuração tmpfiles
+├── raglinux.sh             # Script principal de instalação e gerenciamento
+├── Containerfile.base      # Define a imagem base do sistema (pacotes e configs)
+├── post-install.sh         # (Opcional) Script para configurações pós-instalação
+├── archlinux/              # Configurações específicas do Arch
+├── cachyos/                # (Opcional) Configurações para builds alternativas
+└── Containerfile.host.example # Exemplo para customizações do host
 ```
 
-* Root é **imutável**
-* Atualizações são via **OSTree commits**
-* Rollback possível se algo der errado
+-----
 
----
+## ⚙️ Uso e Gerenciamento
 
-## 🖥 Gerenciamento do sistema
+O script `raglinux.sh` é a principal ferramenta para interagir com o sistema em nível de build e deploy.
 
-* Ver deploys:
+### Instalação Inicial
+
+Para criar o primeiro deployment do sistema em um dispositivo de bloco (ex: `/dev/sda`).
 
 ```bash
-ostree admin status
+# Exemplo de uso
+./raglinux.sh install --dev /dev/sda --keymap br-abnt2 --time America/Sao_Paulo
 ```
 
-* Deploy novo commit:
+### Atualizando o Sistema (Upgrade)
+
+Isso irá construir uma nova imagem, criar um novo commit no OSTree e prepará-lo para ser o próximo boot.
 
 ```bash
-sudo ostree admin deploy raglinux/latest
+# Cria um novo commit OSTree com as últimas atualizações
+./raglinux.sh upgrade
 ```
 
-* Reverter:
+Após o upgrade, reinicie o sistema para aplicar a nova versão.
+
+### Revertendo uma Atualização (Rollback)
+
+Caso a última atualização apresente algum problema, você pode facilmente reverter.
 
 ```bash
-sudo ostree admin undeploy --rollback
+# Reverte para o deployment anterior (marcado como 0)
+./raglinux.sh revert
 ```
 
-* Instalar apps sem tocar root:
+### Opções do Script `raglinux.sh`
 
-  * Flatpak
-  * Podman / Distrobox (containers)
-  * Diretórios em `/home/<usuário>`
+| Opção | Argumento Longo | Descrição | Padrão |
+| :--- | :--- | :--- |:--- |
+| `-b` | `--base-os` | Nome do sistema operacional para o repositório OSTree. | `raglinux` |
+| `-c` | `--cmdline` | Argumentos extras para a linha de comando do Kernel. | |
+| `-d` | `--dev` | Dispositivo de bloco (SCSI/NVMe) para a instalação. | |
+| `-f` | `--file` | Caminho para o(s) `Containerfile`(s) a serem usados no build. | |
+| `-k` | `--keymap` | Layout de teclado para o console (TTY). | |
+| `-t` | `--time` | Fuso horário (Timezone) no formato `Região/Cidade`. | |
+| `-m` | `--merge` | Mantém o diretório `/etc` durante um upgrade. | |
+| `-n` | `--no-cache` | Ignora o cache do Pacman e do Podman durante o build. | |
+| `-q` | `--quiet` | Reduz a quantidade de logs exibidos na saída. | |
 
----
+-----
 
-## 🌐 Mirror brasileiro
+## 📦 Gerenciamento de Aplicações
 
-* Pacman configurado para:
+Em um sistema imutável, o gerenciamento de pacotes tradicional (`pacman -S ...`) não é usado diretamente no sistema host. Em vez disso, a instalação de aplicações de usuário é feita de forma isolada:
 
-```
-Server = https://br.mirrors.cicku.me/archlinux/$repo/os/$arch
-```
+  * **Flatpak**: O método recomendado para aplicações gráficas. Elas rodam em seu próprio sandbox e não alteram o sistema base.
+  * **Podman / Distrobox**: Ideal para ferramentas de linha de comando e ambientes de desenvolvimento. Crie containers com as distribuições e pacotes que precisar, sem "sujar" o sistema host.
+  * **Binários em `/home`**: Para aplicações simples que não requerem dependências complexas, você pode executá-las a partir do seu diretório pessoal.
 
----
+-----
 
-## 💡 Dicas finais
+## 🗂️ Estrutura do Sistema de Arquivos (Pós-instalação)
 
-* Sempre use `raglinux.sh` para instalação e upgrades.
-* Para instalar apps de forma segura, utilize **containers ou flatpak**.
-* Lembre-se que `/` é imutável; alterações diretas fora do OSTree não persistem.
+O RAGLinux utiliza subvolumes Btrfs para separar os dados do sistema.
 
----
+  * `/` (raiz): **Imutável**. Gerenciado pelo OSTree.
+  * `/home`: Subvolume `@home`. **Mutável**. Armazena os arquivos e configurações dos usuários.
+  * `/var`: Subvolume `@var`. **Mutável**. Contém dados variáveis como logs, caches de aplicações, etc.
+  * `/ostree`: Subvolume `@ostree`. Contém os deployments (versões) do sistema operacional.
+  * `/boot/efi`: Partição EFI para o bootloader.
+
+-----
+
+## 🧠 Desafios Resolvidos Durante o Desenvolvimento
+
+1.  **Espaço Insuficiente no LiveCD (`airootfs`)**
+
+      * **Problema**: O ambiente de instalação do Arch tem um `tmpfs` limitado, que estourava durante o build do container.
+      * **Solução**: Direcionar o diretório temporário e a raiz do Podman para o disco de destino (`/mnt`), que possui espaço de sobra.
+        ```bash
+        export TMPDIR=/mnt/podman/tmp
+        # Configurar /mnt/podman como storage root do Podman
+        ```
+
+2.  **Volume do Podman Não Encontrado**
+
+      * **Problema**: O Podman não conseguia montar o cache do Pacman pois o diretório de destino não existia no host antes do build.
+      * **Solução**: Criar manualmente a estrutura de diretórios do cache antes de invocar o comando `podman build`.
+        ```bash
+        mkdir -p /mnt/podman/var/cache/pacman
+        ```
+
+3.  **GRUB Não se Instalava Corretamente no Chroot**
+
+      * **Problema**: O comando `grub-mkconfig` falhava por não encontrar os dispositivos e informações do sistema quando executado de um chroot simples.
+      * **Solução**: Fazer o bind mount dos pseudo-sistemas de arquivos (`/dev`, `/proc`, `/sys`) do host para dentro do ambiente chroot antes de executar o comando.
+        ```bash
+        for i in /dev /proc /sys; do mount -o bind $i ${DEPLOY_PATH}${i}; done
+        chroot ${DEPLOY_PATH} grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg
+        ```
+
+-----
+
+## 🌐 Configurações Padrão
+
+  * **Espelho Brasileiro do Pacman**: Para garantir downloads mais rápidos, o `pacman.conf` é configurado por padrão para utilizar o espelho `br.mirrors.cicku.me`.
+  * **Pacotes Base**: A imagem (`Containerfile.base`) inclui um sistema funcional com Plasma Desktop (KDE), ferramentas de containerização (Podman, Distrobox), Pipewire para áudio e outros utilitários essenciais.
+
+-----
 
 ### Autor
 
 Gabriel Aguiar Rocha – [GitHub](https://github.com/gabrielrocha)
-
----
-
-```
-
----
-
-Se você quiser, posso criar uma **versão ainda mais detalhada**, incluindo **passo-a-passo de todo o build**, **comandos do Podman e OSTree**, e **prints de erros comuns e suas soluções**, para servir como documentação completa para qualquer usuário do RAGLinux.  
-
-Quer que eu faça essa versão expandida?
-```
