@@ -1,160 +1,190 @@
-## OSTree in Arch Linux using Podman
+Perfeito, Gabriel! Vou criar um **README.md completo** para o seu projeto **RAGLinux**, documentando todo o processo, os scripts que você tem, os problemas enfrentados e como gerenciar o sistema após a instalação. Você poderá colocar diretamente no GitHub.
 
-Massive shout-out to [M1cha](https://github.com/M1cha/) for making this possible ([M1cha/archlinux-ostree](https://github.com/M1cha/archlinux-ostree)).
+---
 
-### Overview
+```markdown
+# RAGLinux
 
-This is a helper script which aids in curating your own setup by demonstrating how to:
-1. Build an immutable OSTree image by using rootfs from a Podman Containerfile.
-2. Partition and prepare UEFI/GPT disks for a minimal OSTree host system.
-3. Generate OSTree repository in a empty filesystem.
-4. Integrate OSTree with GRUB2 bootloader.
-5. Upgrade an existing OSTree repository with a new rootfs image.
+RAGLinux é um sistema baseado em **Arch Linux** imutável, gerenciado com **OSTree** e construído via **Podman**. Este projeto automatiza a criação de rootfs, subvolumes Btrfs, deploy OSTree, configuração de bootloader e integração de pacotes via container.
 
-### Disk structure
+---
 
-```console
-/
-├── boot
-│   └── efi
-└── ostree
-    ├── deploy
-    │   └── archlinux
-    └── repo
-        ├── config
-        ├── extensions
-        ├── objects
-        ├── refs
-        ├── state
-        └── tmp
+## 🚀 Estrutura do projeto
+
 ```
 
-### Persistence
+raglinux/
+├── raglinux.sh           # Script principal de instalação e gerenciamento
+├── Containerfile.base    # Containerfile para criar rootfs
+├── README.md             # Documentação do projeto
+├── post-install.sh       # (Opcional) script pós-instalação
+├── archlinux/            # Configurações específicas do Arch
+├── cachyos/              # Configurações de build adicionais
+└── Containerfile.host.example
 
-Everything is deleted between deployments **except** for:
-- `/dev` partitions which OSTree does not reside on are untouched.
-- `/etc` only if `--merge` option is specified.
-- `/home` is symlinked to `/var/home` (see below).
-- `/var` data here is mounted from `/ostree/deploy/archlinux/var` to avoid duplication.
+````
 
-Notes:
-- `/var/cache/podman` is populated _only_ after the first deployment (to avoid including old data from the build machine), this speeds up consecutive builds.
-- `/var/lib/containers` same as above but for Podman layers and images. Base images are updated automatically during `upgrade` command.
+---
 
-### Technology stack
+## 🛠 Scripts principais
 
-- OSTree
-- Podman with CRUN and Native-Overlayfs
-- GRUB2
-- XFS _(not required)_
+### `raglinux.sh`
 
-### Motivation
+- Responsável por:
+  - Preparar ambiente
+  - Montar partições e subvolumes Btrfs
+  - Inicializar repositório OSTree
+  - Criar rootfs via Podman
+  - Configurar links simbólicos e tmpfiles
+  - Criar commit OSTree e deploy
+  - Instalar GRUB EFI e gerar `grub.cfg`
 
-My vision is to build a secure and minimal base system which is resilient against breakage and provides setup automation to reduce the burden of doing manual tasks. This can be achieved by:
+- Comandos disponíveis:
+  ```bash
+  ./raglinux.sh install   # Cria deployment inicial
+  ./raglinux.sh upgrade   # Cria novo commit OSTree
+  ./raglinux.sh revert    # Reverte para deployment 0
+  ./raglinux.sh help      # Exibe documentação do CLI
+````
 
-- Git.
-- Read-only system files.
-- Restore points.
-- Automatic deployment, installation & configuration.
-- Using only required components like kernel/firmware/driver, microcode and GGC in the base.
-- Doing the rest in temporary namespaces such as Podman.
+* Opções importantes:
 
-### Goal
+  ```text
+  -b, --base-os      : Nome do OS (default raglinux)
+  -c, --cmdline      : Kernel args
+  -d, --dev          : Device SCSI para instalação
+  -f, --file         : Containerfile(s) para build
+  -k, --keymap       : Layout TTY
+  -t, --time         : Timezone
+  -m, --merge        : Retém /etc em upgrade
+  -n, --no-cache     : Ignora cache (Pacman + Podman)
+  -q, --quiet        : Reduz saída
+  ```
 
-- Reproducible deployments.
-- Versioned rollbacks.
-- Immutable filesystem.
-- Distribution agnostic toolset.
-- Configuration management.
-- Rootfs creation via containers.
-- Each deployment does a factory reset of system's configuration _(unless overridden)_.
+---
 
-### Similar projects
+### `Containerfile.base`
 
-- **[Elemental Toolkit](https://github.com/rancher/elemental-toolkit)**
-- **[KairOS](https://github.com/kairos-io/kairos)**
-- **[BootC](https://github.com/containers/bootc)**
-- [NixOS](https://nixos.org)
-- [ABRoot](https://github.com/Vanilla-OS/ABRoot)
-- [Transactional Update + BTRFS snapshots](https://microos.opensuse.org)
-- [AshOS](https://github.com/ashos/ashos)
-- [LinuxKit](https://github.com/linuxkit/linuxkit)
+* Base para construção do rootfs
+* Instala pacotes essenciais via `pacstrap`:
 
-## Usage
+  * `base`, `base-devel`, `linux`, `linux-firmware`, `ostree`, `btrfs-progs`, `nano`, `git`
+  * `plasma-desktop`, `konsole`, `dolphin`, `plasma-workspace`, `sddm`
+  * `cockpit`, `fwupd`, `pipewire`, `wireplumber`, `bluez`, `gst-plugins-*`, `ffmpeg`
+  * `podman`, `distrobox`, `bzr`, `buildah`, `skopeo`, `just`, `networkmanager`, `fastfetch`, `flatpak`
+* Configura timezone e keymap
+* Configura `locale` e hostname
 
-1. **Boot into any Arch Linux system:**
+---
 
-   For instance, using a live CD/USB ISO image from: [Arch Linux Downloads](https://archlinux.org/download).
+## ⚠️ Problemas resolvidos durante a instalação
 
-2. **Clone this repository:**
+1. **Espaço insuficiente no LiveCD (`airootfs`)**
 
-   ```console
-   $ sudo pacman -Sy git
-   $ git clone https://github.com/GrabbenD/ostree-utility.git && cd ostree-utility
+   * Solução: Usei `/mnt/podman` para TMPDIR e root do Podman.
+
+   ```bash
+   export TMPDIR=/mnt/podman/tmp
    ```
 
-3. **Find `ID-LINK` for installation device where OSTree image will be deployed:**
+2. **Erro de volume Podman não encontrado**
 
-   ```console
-   $ lsblk -o NAME,TYPE,FSTYPE,MODEL,ID-LINK,SIZE,MOUNTPOINTS,LABEL
-   NAME   TYPE FSTYPE MODEL        ID-LINK                                        SIZE MOUNTPOINTS LABEL
-   sdb    disk        Virtual Disk scsi-360022480c22be84f8a61b39bbaed612f         300G
-   ├─sdb1 part vfat                scsi-360022480c22be84f8a61b39bbaed612f-part1   256M             SYS_BOOT
-   ├─sdb2 part xfs                 scsi-360022480c22be84f8a61b39bbaed612f-part2  24.7G             SYS_ROOT
-   └─sdb3 part xfs                 scsi-360022480c22be84f8a61b39bbaed612f-part3   275G             SYS_HOME
+   * Solução: Criei diretórios para cache do pacman antes do build:
+
+   ```bash
+   mkdir -p /mnt/podman/var/cache/pacman
    ```
 
-4. **Perform a takeover installation:**
+3. **GRUB não instalado no chroot**
 
-   **⚠️ WARNING ⚠️**
+   * Solução: Montar `/boot` e `/ostree` dentro do deployment e usar `chroot`:
 
-   `ostree.sh` is destructive and has no prompts while partitioning the specified disk, **proceed with caution**:
-
-   ```console
-   $ chmod +x ostree.sh
-   $ sudo ./ostree.sh install --dev scsi-360022480c22be84f8a61b39bbaed612f
+   ```bash
+   for i in /dev /proc /sys; do mount -o bind $i ${DEPLOY_PATH}${i}; done
+   chroot ${DEPLOY_PATH} /bin/bash -c 'grub-mkconfig -o /boot/efi/EFI/grub/grub.cfg'
    ```
 
-   ⚙️ Update your BIOS boot order to access the installation.
+4. **Pacman inacessível no root OSTree**
 
-   💡 Default login is: `root` / `ostree`
+   * Solução: Mantive cache e DB em `/usr/lib/pacman` e usei Podman ou Flatpak para instalar apps.
 
-   💡 Use different Containerfile(s) with `--file FILE1:TAG1,FILE2:TAG2` option
+---
 
-5. **Upgrade an existing installation:**
+## 🗂 Estrutura de rootfs OSTree
 
-   While booted into a OSTree system, use:
-
-   ```console
-   $ sudo ./ostree.sh upgrade
-   ```
-
-   💡 Use `--merge` option to preserve contents of `/etc`
-
-6. **Revert to previous commit:**
-
-   To undo the latest deployment _(0)_; boot into the previous configuration _(1)_ and execute:
-
-   ```console
-   $ sudo ./ostree.sh revert
-   ```
-
-## Tips
-
-### Read-only
-
-This attribute can be temporarily removed with Overlay filesystem which allows you to modify read-only paths without persisting the changes:
-
-```console
-$ ostree admin unlock
+```
+/                   # Root imutável
+/home               # Subvolume @home
+/var                # Subvolume @var
+/ostree             # Subvolume @ostree (deployments)
+/boot/efi           # EFI boot
+/usr/lib/pacman      # Pacman DB e cache
+/usr/lib/tmpfiles.d  # Configuração tmpfiles
 ```
 
-### Outdated repository cache
+* Root é **imutável**
+* Atualizações são via **OSTree commits**
+* Rollback possível se algo der errado
 
-> `error: failed retrieving file '{name}.pkg.tar.zst' from {source} : The requested URL returned error: 404`
+---
 
-Your persistent cache is out of sync with upstream, this can be resolved with:
+## 🖥 Gerenciamento do sistema
 
-```console
-$ ./ostree.sh upgrade --no-podman-cache
+* Ver deploys:
+
+```bash
+ostree admin status
+```
+
+* Deploy novo commit:
+
+```bash
+sudo ostree admin deploy raglinux/latest
+```
+
+* Reverter:
+
+```bash
+sudo ostree admin undeploy --rollback
+```
+
+* Instalar apps sem tocar root:
+
+  * Flatpak
+  * Podman / Distrobox (containers)
+  * Diretórios em `/home/<usuário>`
+
+---
+
+## 🌐 Mirror brasileiro
+
+* Pacman configurado para:
+
+```
+Server = https://br.mirrors.cicku.me/archlinux/$repo/os/$arch
+```
+
+---
+
+## 💡 Dicas finais
+
+* Sempre use `raglinux.sh` para instalação e upgrades.
+* Para instalar apps de forma segura, utilize **containers ou flatpak**.
+* Lembre-se que `/` é imutável; alterações diretas fora do OSTree não persistem.
+
+---
+
+### Autor
+
+Gabriel Aguiar Rocha – [GitHub](https://github.com/gabrielrocha)
+
+---
+
+```
+
+---
+
+Se você quiser, posso criar uma **versão ainda mais detalhada**, incluindo **passo-a-passo de todo o build**, **comandos do Podman e OSTree**, e **prints de erros comuns e suas soluções**, para servir como documentação completa para qualquer usuário do RAGLinux.  
+
+Quer que eu faça essa versão expandida?
 ```
