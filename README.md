@@ -1,6 +1,7 @@
 -----
 
-# RAGLinux
+# RAGostree-utility
+
 
 **RAGLinux** é um sistema operacional baseado em **Arch Linux** com uma abordagem moderna e robusta: um sistema de arquivos raiz **imutável**, gerenciado de forma atômica pelo **OSTree** e construído com a flexibilidade do **Podman**.
 
