@@ -1,4 +1,3 @@
-Perfeito, Gabriel! Vou criar um **README.md completo** para o seu projeto **RAGLinux**, documentando todo o processo, os scripts que você tem, os problemas enfrentados e como gerenciar o sistema após a instalação. Você poderá colocar diretamente no GitHub.
 
 ---
 
