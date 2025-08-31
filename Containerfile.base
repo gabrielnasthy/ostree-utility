@@ -7,16 +7,21 @@ FROM docker.io/archlinux/archlinux:latest AS rootfs
 RUN curl https://gitlab.archlinux.org/archlinux/packaging/packages/pacman/-/raw/main/pacman.conf -o /etc/pacman.conf \
  && pacman --noconfirm --sync --needed --refresh archlinux-keyring
 
+# Atualiza pacman.conf com o mirror brasileiro
+RUN echo "Server = https://br.mirrors.cicku.me/archlinux/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist \
+ && pacman -Sy --noconfirm archlinux-keyring
+
+
 RUN pacman --noconfirm --sync --needed arch-install-scripts \
  && pacstrap -K -P /mnt \
     base base-devel linux linux-firmware ostree btrfs-progs nano git \
-    plasma-desktop konsole dolphin plasma-wayland-session sddm \
+    plasma-desktop konsole dolphin plasma-workspace sddm \
     cockpit fwupd \
     pipewire pipewire-audio pipewire-pulse pipewire-jack wireplumber \
     bluez bluez-utils \
     gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav ffmpeg \
     podman distrobox \
-    bazaar buildah skopeo just \
+    bzr buildah skopeo just \
     networkmanager fastfetch flatpak \
  && cp -av /etc/pacman.d/ /mnt/etc/
 
